@@ -1,0 +1,73 @@
+name: CI CD to fargate
+
+on: [push]
+
+jobs:
+  CI-CD2fargate:
+    runs-on: ubuntu-latest
+      
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v3
+
+      - name: AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{secrets.AWS_GITHUB_ROLE_ARN}}
+          aws-region: us-east-1
+      
+      - name: Login to AWS ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Terraform Init
+        id: init
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_wrapper: false
+      
+      - name: set_variables
+        id: variables
+        run: |
+            terraform -chdir=terraform/ init
+            echo "repo_name="$(terraform -chdir=terraform/ output -raw ecr_name) >> $GITHUB_OUTPUT
+            echo "cluster_name="$(terraform -chdir=terraform/ output -raw ecs_cluster_name) >> $GITHUB_OUTPUT
+            echo "service_name="$(terraform -chdir=terraform/ output -raw ecs_service_name) >> $GITHUB_OUTPUT
+            echo "container_name="$(terraform -chdir=terraform/ output -raw container_name) >> $GITHUB_OUTPUT
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ steps.variables.outputs.repo_name }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG . -f docker/dockerfile
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+      
+      - name: Download task definition
+        id: download
+        run: |
+          aws ecs describe-task-definition --task-definition ${{ steps.variables.outputs.cluster_name }} --query taskDefinition > task-definition.json
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ steps.variables.outputs.container_name }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ steps.variables.outputs.service_name }}
+          cluster: ${{ steps.variables.outputs.cluster_name }}
+          wait-for-service-stability: true
+          

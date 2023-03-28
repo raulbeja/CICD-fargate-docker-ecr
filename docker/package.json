@@ -1,0 +1,10 @@
+{
+  "name": "my-cicd-express-example",
+  "version": "1.0.0",
+  "author": "rbg",
+  "main": "app.js",
+  "dependencies": {
+    "config": "^3.3.6",
+    "express": "^4.17.1"
+  }
+}
