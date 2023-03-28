@@ -1,0 +1,17 @@
+aws_region = "us-east-1"  
+owner = "rbg"
+env = "mysandbox"
+ecr_name = "mysandbox"
+ecr_image_mutability = "MUTABLE"
+vpc_cidr_block = "10.0.0.0/16"
+min_avz = 2
+ecs_domain_name = "rbgdevdom.es"
+inet_cidr_block = "0.0.0.0/0"
+ecs_cluster_name = "myappcluster"
+ecs_service_name = "myappsvc"
+ecs_task_memory = "512"
+ecs_task_cpu = "256"
+desired_task_number = 2
+container_name = "myappcontainer"
+container_image = "nginx:latest"
+container_port = 80
