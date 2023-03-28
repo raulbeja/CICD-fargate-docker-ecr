@@ -1,7 +1,3 @@
-output "accountid"{
-  value=data.aws_caller_identity.current
-}
-
 output "region" {
   value = var.aws_region
 }
